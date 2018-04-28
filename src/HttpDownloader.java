@@ -18,7 +18,7 @@ public class HttpDownloader {
 
 	private boolean resumable;
 	private URL url;
-	//文件保存的本地地址
+	//文件保存的本地临时地址
 	private File localFile;
 	//存放每一段的起止位置
 	private int[] endPoint;
@@ -87,10 +87,12 @@ public class HttpDownloader {
 			System.err.println("Download interrupted.");
 		}
 
+		//所有线程都下载完成，进行文件合并
 		cleanTempFile();
 
 		long timeElapsed = System.currentTimeMillis() - startTime;
 		System.out.println("* File successfully downloaded.");
+		//计算下载时间，和下载速度
 		System.out.println(String.format("* Time used: %.3f s, Average speed: %d KB/s",
 				timeElapsed / 1000.0, downloadedBytes.get() / timeElapsed));
 	}
