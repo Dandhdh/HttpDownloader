@@ -18,7 +18,9 @@ public class HttpDownloader {
 
 	private boolean resumable;
 	private URL url;
+	//文件保存的本地地址
 	private File localFile;
+	//存放每一段的起止位置
 	private int[] endPoint;
 	private Object waiting = new Object();
 	private AtomicInteger downloadedBytes = new AtomicInteger(0);
@@ -54,6 +56,7 @@ public class HttpDownloader {
 		if (!resumable || THREAD_NUM == 1|| fileSize < MIN_SIZE){
 			multithreaded = false;
 		}
+		//单线程下载
 		if (!multithreaded) {
 			new DownloadThread(0, 0, fileSize - 1).start();;
 		}
@@ -61,14 +64,18 @@ public class HttpDownloader {
 			endPoint = new int[THREAD_NUM + 1];
 			int block = fileSize / THREAD_NUM;
 			for (int i = 0; i < THREAD_NUM; i++) {
+				//记录每一段的起始位置
+				//则结束位置为后一个起始位置-1
 				endPoint[i] = block * i;
 			}
+			//最后一个，存放文件尾位置
 			endPoint[THREAD_NUM] = fileSize;
 			for (int i = 0; i < THREAD_NUM; i++) {
 				new DownloadThread(i, endPoint[i], endPoint[i + 1] - 1).start();
 			}
 		}
 
+		//监测下载速度及下载状态，下载完成时通知主线程
 		startDownloadMonitor();
 
 		//等待 downloadMonitor 通知下载完成
@@ -96,6 +103,7 @@ public class HttpDownloader {
 		while (true) {
 			try {
 				con.connect();
+				//获取要下载文件的大小，为之后分段做准备
 				fileSize = con.getContentLength();
 				resCode = con.getResponseCode();
 				con.disconnect();
@@ -105,6 +113,7 @@ public class HttpDownloader {
 			}
 		}
 		if (resCode == 206) {
+			//状态码为206，表明支持断点续传
 			System.out.println("* Support resume download");
 			return true;
 		} else {
@@ -117,6 +126,7 @@ public class HttpDownloader {
 	public void startDownloadMonitor() {
 		Thread downloadMonitor = new Thread(() -> {
 			int prev = 0;
+			//现在下载到的字节数
 			int curr = 0;
 			while (true) {
 				try {
@@ -136,6 +146,7 @@ public class HttpDownloader {
 			}
 		});
 
+		//设置为守护线程
 		downloadMonitor.setDaemon(true);
 		downloadMonitor.start();
 	}
@@ -194,6 +205,7 @@ public class HttpDownloader {
 					System.out.println("* Downloaded part " + (id + 1));
 					break;
 				} else {
+					//从新下载文件片段
 					System.out.println("Retry to download part " + (id + 1));
 				}
 			}
@@ -213,6 +225,7 @@ public class HttpDownloader {
 					return false;
 				}
 				if (out == null) {
+					//设置文件片段的保存路径
 					out = new FileOutputStream(localFile.getAbsolutePath() + "." + id + ".tmp");
 				}
 				try (InputStream in = con.getInputStream()) {
@@ -225,6 +238,7 @@ public class HttpDownloader {
 						out.flush();
 					}
 					con.disconnect();
+					//没有下载完，即存在部分文件数据缺失
 					if (start <= end) {
 						return false;
 					} else {
@@ -238,7 +252,6 @@ public class HttpDownloader {
 				System.out.println("Part " + (id + 1) + " encountered error.");
 				return false;
 			}
-
 			return true;
 		}
 	}
